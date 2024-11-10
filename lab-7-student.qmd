@@ -1,6 +1,6 @@
 ---
 title: "Lab 7: Functions + Fish"
-author: "Your name here!"
+author: "Khoa Dang!"
 format: html
 editor: source
 embed-resources: true
@@ -12,7 +12,12 @@ modular code.
 ```{r}
 #| label: setup
 
+library(tidyverse)
+library(here)
+library(rlang)
 
+fish <- read_csv(here::here("data", "BlackfootFish.csv"), 
+               show_col_types = FALSE)
 ```
 
 ## The Data
@@ -44,14 +49,32 @@ measurement errors.
 
 ```{r}
 #| label: find-missing-values
+fish %>%
+  summarize(across(.cols = everything(),
+                   .fns = ~ sum(is.na(.))))
 
 ```
+The table suggests that 1796 observations have missing values located in the weight variable. 
 
 **2. Create ONE thoughtful visualization that explores the frequency of missing values across the different years, sections, and trips.**
 
 ```{r}
 #| label: visual-of-missing-values-over-time
-
+fish %>%
+  filter(is.na(weight)) %>%
+  group_by(year, section, trip) %>%
+  summarize(missing_count = n()) %>%
+  ggplot(aes(x = year, y = missing_count, fill = factor(trip))) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ section) +
+  theme_bw() +
+  labs(
+    title = "Missing Weights of Trouts by Year, Section, and Trip",
+    x = "Year",
+    y = "",
+    subtitle = "Count of Missing Weights",
+    fill = "Trip"
+  )
 ```
 
 ## Rescaling the Data
@@ -96,7 +119,18 @@ function, instead!
 ```{r}
 #| label: write-rescale-function
 
+rescale_01 <- function(vector)
+{
+  stopifnot(is.numeric(vector), length(vector) > 1)
+  
+  range = range(vector, na.rm = TRUE)
+  
+  rescaled_vector = (vector - range[1]) / (range[2] - range[1])
+  
+  return (rescaled_vector)
+}
 ```
+
 
 ::: callout-tip
 # Efficiency 
@@ -143,14 +177,23 @@ statement in order to create a `length_scaled` variable.
 
 ```{r}
 #| label: compare-original-with-rescaled-lengths
+#| layout-ncol: 2
 
 fish |>  
   ggplot(aes(x = length)) + 
-  geom_histogram(binwidth = 45) +
+  geom_histogram(binwidth = 45, fill = 'dodgerblue') +
   labs(x = "Original Values of Fish Length (mm)") +
-  scale_y_continuous(limits = c(0,4000))
+  scale_y_continuous(limits = c(0,4000)) +
+  theme_bw()
 
 # Code for Q7 plot.
+fish |>
+  mutate(length_scaled = rescale_01(length)) %>%
+  ggplot(aes(x = length_scaled)) + 
+  geom_histogram(binwidth = 0.045, fill = 'dodgerblue') +
+  labs(x = "Scaled Values of Fish Length (mm)") +
+  scale_y_continuous(limits = c(0, 4000)) +
+  theme_bw()
 
 ```
 
@@ -183,8 +226,23 @@ section of R for Data Science!
 
 ```{r}
 #| label: rescale-data-frame-function
+# Source: https://rlang.r-lib.org/reference/sym.html
 
+rescale_column <- function(df, cols)
+{
+  stopifnot(is.data.frame(df))
+  
+  print(colnames(df))
+  cols <- enquos(cols)
+  
+  df <- df %>%
+    mutate(across(!!!cols, ~ rescale_01(.)))
+  
+  return (df)
+}
 ```
+
+
 
 **9. Use your `rescale_column()` function to rescale *both* the `length` and `weight` columns.**
 
@@ -195,4 +253,7 @@ I expect that you carry out this process by calling the `rescale_column()` funct
 ```{r}
 #| label: rescale-two-columns
 
+rescaled_fish <- rescale_column(fish, c("length", "weight"))
+
+rescaled_fish
 ```
